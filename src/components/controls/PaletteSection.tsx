@@ -1,19 +1,30 @@
 import React from 'react';
-import { Palette } from 'lucide-react';
+import { Palette, Shuffle } from 'lucide-react';
 import { SectionHeader } from './SectionHeader';
 
 interface PaletteSectionProps {
     colors: string[];
     onColorChange: (index: number, val: string) => void;
+    onRandomize: () => void;
 }
 
 export const PaletteSection: React.FC<PaletteSectionProps> = ({
     colors,
     onColorChange,
+    onRandomize,
 }) => {
     return (
         <div className="space-y-3 sm:space-y-4 pt-3 sm:pt-4 border-t border-white/5">
-            <SectionHeader icon={<Palette size={14} />} label="Tune Palette" />
+            <div className="flex items-center justify-between">
+                <SectionHeader icon={<Palette size={14} />} label="Tune Palette" />
+                <button
+                    onClick={onRandomize}
+                    className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all group"
+                    title="Randomize Colors"
+                >
+                    <Shuffle size={14} className="group-active:rotate-180 transition-transform duration-300" />
+                </button>
+            </div>
             <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
                 {colors.map((color, idx) => (
                     <div key={idx} className="flex flex-col items-center gap-2 group">

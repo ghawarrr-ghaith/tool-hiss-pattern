@@ -13,6 +13,7 @@ export interface ControlsProps {
   setCenterForce: (force: boolean) => void;
   complexity: number;
   setComplexity: (val: number) => void;
+  onRandomizeColors: () => void;
   isPlaying: boolean;
   onTogglePlay: () => void;
   onDownload: () => void;

@@ -12,6 +12,7 @@ export const Controls: React.FC<ControlsProps> = ({
     onPresetChange,
     colors,
     onColorChange,
+    onRandomizeColors,
     centerForce,
     setCenterForce,
     complexity,
@@ -62,6 +63,7 @@ export const Controls: React.FC<ControlsProps> = ({
                 <PaletteSection
                     colors={colors}
                     onColorChange={onColorChange}
+                    onRandomize={onRandomizeColors}
                 />
 
             </div>

@@ -59,6 +59,14 @@ export const CrimsonShader: React.FC = () => {
     setColors(newColors);
   };
 
+  const handleRandomizeColors = () => {
+    setActivePreset('Custom');
+    const newColors = Array.from({ length: 4 }, () =>
+      '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')
+    );
+    setColors(newColors);
+  };
+
   const handleDownload = () => {
     if (canvasRef.current) {
       const link = document.createElement('a');
@@ -190,6 +198,7 @@ export const CrimsonShader: React.FC = () => {
         onPresetChange={handlePresetChange}
         colors={colors}
         onColorChange={handleColorChange}
+        onRandomizeColors={handleRandomizeColors}
         centerForce={centerForce}
         setCenterForce={setCenterForce}
         complexity={complexity}
