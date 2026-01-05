@@ -4,6 +4,7 @@ import { PRESETS } from '../constants/presets';
 import { Preset } from '../types';
 import { vertexShaderSource, fragmentShaderSource } from '../shaders/crimson';
 import { createShader, createProgram, hexToRgb } from '../utils/webgl';
+import { ResolutionDialog } from './ResolutionDialog';
 
 /**
  * CrimsonShader
@@ -22,6 +23,14 @@ export const CrimsonShader: React.FC = () => {
   const isPlayingRef = useRef(true);
   const timeRef = useRef(0);
   const lastTimeRef = useRef(Date.now());
+
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [viewportSize, setViewportSize] = useState({ width: window.innerWidth, height: window.innerHeight });
+
+  // WebGL context and uniform locations stored in refs to access during export
+  const glRef = useRef<WebGLRenderingContext | null>(null);
+  const programRef = useRef<WebGLProgram | null>(null);
+  const uniformLocsRef = useRef<any>({});
 
   // We use a ref to pass the current colors and state to the WebGL render loop 
   const colorsRef = useRef(colors);
@@ -67,13 +76,90 @@ export const CrimsonShader: React.FC = () => {
     setColors(newColors);
   };
 
-  const handleDownload = () => {
-    if (canvasRef.current) {
+  const handleDownloadRequest = () => {
+    setViewportSize({ width: window.innerWidth, height: window.innerHeight });
+    setShowExportDialog(true);
+  };
+
+  const performExport = (width: number, height: number, split?: boolean) => {
+    const canvas = canvasRef.current;
+    const gl = glRef.current;
+    const program = programRef.current;
+    const locs = uniformLocsRef.current;
+
+    if (!canvas || !gl || !program) return;
+
+    // Save current state
+    const originalWidth = canvas.width;
+    const originalHeight = canvas.height;
+
+    // Resize for export
+    canvas.width = width;
+    canvas.height = height;
+    gl.viewport(0, 0, width, height);
+
+    // Update resolution uniform
+    gl.uniform2f(locs.resolution, width, height);
+
+    // Update other uniforms to ensured they are fresh (though they are updated in render loop too)
+    gl.uniform1f(locs.time, timeRef.current);
+    // mouse is harder to "scale" perfectly if we wanted it relative, 
+    // but usually for export we just want the current state.
+    // However, if the user chose a different aspect ratio, we might want to reconsider mouse mapping.
+    // For now, let's just keep it as is.
+
+    if (colorsRef.current) {
+      gl.uniform3fv(locs.color1, hexToRgb(colorsRef.current[0]));
+      gl.uniform3fv(locs.color2, hexToRgb(colorsRef.current[1]));
+      gl.uniform3fv(locs.color3, hexToRgb(colorsRef.current[2]));
+      gl.uniform3fv(locs.color4, hexToRgb(colorsRef.current[3]));
+    }
+    gl.uniform1f(locs.centerForce, centerForceRef.current ? 1.0 : 0.0);
+    gl.uniform1f(locs.complexity, complexityRef.current);
+
+    // Render 
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+    if (split) {
+      const slideWidth = 1080;
+      const slides = Math.round(width / slideWidth);
+
+      // Create a temporary 2D canvas for cropping
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = slideWidth;
+      tempCanvas.height = height;
+      const ctx = tempCanvas.getContext('2d');
+
+      if (ctx) {
+        for (let i = 0; i < slides; i++) {
+          ctx.clearRect(0, 0, slideWidth, height);
+          // Draw a segment of the WebGL canvas onto the 2D canvas
+          // Note: drawImage can take another canvas as source
+          ctx.drawImage(
+            canvas,
+            i * slideWidth, 0, slideWidth, height, // Source rectangle
+            0, 0, slideWidth, height              // Destination rectangle
+          );
+
+          const link = document.createElement('a');
+          link.download = `hiss-carousel-slide-${i + 1}-${Date.now()}.png`;
+          link.href = tempCanvas.toDataURL('image/png', 1.0);
+          link.click();
+        }
+      }
+    } else {
+      // Download single image
       const link = document.createElement('a');
-      link.download = `hiss-pattern-${Date.now()}.png`;
-      link.href = canvasRef.current.toDataURL('image/png', 1.0);
+      link.download = `hiss-pattern-${width}x${height}-${Date.now()}.png`;
+      link.href = canvas.toDataURL('image/png', 1.0);
       link.click();
     }
+
+    // Restore
+    canvas.width = originalWidth;
+    canvas.height = originalHeight;
+    gl.viewport(0, 0, originalWidth, originalHeight);
+    gl.uniform2f(locs.resolution, originalWidth, originalHeight);
   };
 
   useEffect(() => {
@@ -94,6 +180,8 @@ export const CrimsonShader: React.FC = () => {
     const program = createProgram(gl, vertexShader, fragmentShader);
     if (!program) return;
 
+    glRef.current = gl;
+    programRef.current = program;
     gl.useProgram(program);
 
     // Set up a full-screen rectangle
@@ -125,6 +213,18 @@ export const CrimsonShader: React.FC = () => {
     const color2Loc = gl.getUniformLocation(program, 'u_color2');
     const color3Loc = gl.getUniformLocation(program, 'u_color3');
     const color4Loc = gl.getUniformLocation(program, 'u_color4');
+
+    uniformLocsRef.current = {
+      resolution: resolutionUniformLocation,
+      time: timeUniformLocation,
+      mouse: mouseUniformLocation,
+      centerForce: centerForceUniformLocation,
+      complexity: complexityUniformLocation,
+      color1: color1Loc,
+      color2: color2Loc,
+      color3: color3Loc,
+      color4: color4Loc,
+    };
 
     let startTime = Date.now();
     let mouseX = window.innerWidth / 2;
@@ -205,7 +305,15 @@ export const CrimsonShader: React.FC = () => {
         setComplexity={setComplexity}
         isPlaying={isPlaying}
         onTogglePlay={() => setIsPlaying(!isPlaying)}
-        onDownload={handleDownload}
+        onDownload={handleDownloadRequest}
+      />
+
+      <ResolutionDialog
+        isOpen={showExportDialog}
+        onClose={() => setShowExportDialog(false)}
+        onExport={performExport}
+        currentWidth={viewportSize.width}
+        currentHeight={viewportSize.height}
       />
     </>
   );
